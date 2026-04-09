@@ -138,6 +138,16 @@
   function setupPageListeners() {
     // 监听输入框焦点事件（手动填充模式）
     document.addEventListener('focus', handleInputFocus, true);
+
+    // 监听失焦事件，解除关闭标记
+    document.addEventListener('blur', (event) => {
+        const target = event.target;
+        // 如果失去焦点的元素带有我们的标记，清除它
+        if (target && target.dataset && target.dataset.rfClosed === 'true') {
+            delete target.dataset.rfClosed;
+        }
+    }, true); 
+    // 注意：这里也是用 true (捕获阶段)，和 focus 保持一致
     
     // 监听点击事件（关闭下拉菜单）
     document.addEventListener('click', handleDocumentClick, true);
@@ -151,6 +161,11 @@
     if (!manualFillMode) return;
 
     const target = event.target;
+
+    // 拦截被手动关闭的输入框
+    if (target.dataset.rfClosed === 'true') {
+        return; 
+    }
     
     // 检查是否是可输入元素
     if (!isInputElement(target)) return;
@@ -490,9 +505,11 @@
     closeBtn.addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();
+      // 打上“已手动关闭”的标记
+      inputElement.dataset.rfClosed = 'true';
       removeDropdown();
       // 关闭后重新聚焦输入框，让用户可以继续编辑
-      inputElement.focus();
+      // inputElement.focus();
     });
     
     // 阻止关闭按钮的 mousedown 事件冒泡（防止触发输入框失焦）
