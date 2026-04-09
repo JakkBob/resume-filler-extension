@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>配置管理 - 简历表单填充助手</title>
+  <link rel="stylesheet" href="styles/config.css">
+</head>
+<body>
+  <div class="config-container">
+    <!-- 头部 -->
+    <header class="header">
+      <div class="header-content">
+        <div class="logo">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none">
+            <rect x="3" y="3" width="18" height="18" rx="2" stroke="#0078d4" stroke-width="2"/>
+            <path d="M7 8h10M7 12h10M7 16h6" stroke="#0078d4" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div class="header-text">
+          <h1 class="title">配置管理</h1>
+          <p class="subtitle">管理您的简历填充项</p>
+        </div>
+      </div>
+      <div class="header-actions">
+        <button id="importBtn" class="btn btn-outline">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          导入
+        </button>
+        <button id="exportBtn" class="btn btn-outline">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          导出
+        </button>
+        <input type="file" id="importFile" accept=".json" style="display: none;">
+      </div>
+    </header>
+
+    <!-- 主内容区 -->
+    <main class="main-content">
+      <!-- 操作栏 -->
+      <div class="action-bar">
+        <div class="search-box">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+            <circle cx="11" cy="11" r="8" stroke="currentColor" stroke-width="2"/>
+            <path d="M21 21l-4.35-4.35" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+          <input type="text" id="searchInput" placeholder="搜索填充项...">
+        </div>
+        <button id="addItemBtn" class="btn btn-primary">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+            <path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+          新增填充项
+        </button>
+      </div>
+
+      <!-- 填充项列表 -->
+      <div class="items-container">
+        <div id="itemsList" class="items-list">
+          <!-- 动态生成 -->
+        </div>
+
+        <!-- 空状态 -->
+        <div id="emptyState" class="empty-state hidden">
+          <svg width="64" height="64" viewBox="0 0 24 24" fill="none">
+            <rect x="3" y="3" width="18" height="18" rx="2" stroke="#ccc" stroke-width="2"/>
+            <path d="M7 8h10M7 12h10M7 16h6" stroke="#ccc" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+          <p>暂无填充项</p>
+          <p class="empty-hint">点击"新增填充项"开始配置</p>
+        </div>
+      </div>
+    </main>
+
+    <!-- 编辑弹窗 -->
+    <div id="editModal" class="modal hidden">
+      <div class="modal-overlay"></div>
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2 id="modalTitle">新增填充项</h2>
+          <button id="closeModalBtn" class="btn-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+              <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label for="keywordsInput">
+              标题/关键词
+              <span class="hint">多个关键词用逗号或换行分隔，用于扩大匹配范围</span>
+            </label>
+            <textarea id="keywordsInput" rows="3" placeholder="例如：姓名, 名字, 您的称呼"></textarea>
+          </div>
+          <div class="form-group">
+            <label for="valueInput">
+              填充值
+              <span class="hint">实际填入表单的内容</span>
+            </label>
+            <textarea id="valueInput" rows="3" placeholder="例如：张三"></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button id="cancelBtn" class="btn btn-outline">取消</button>
+          <button id="saveBtn" class="btn btn-primary">保存</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 确认删除弹窗 -->
+    <div id="confirmModal" class="modal hidden">
+      <div class="modal-overlay"></div>
+      <div class="modal-content modal-sm">
+        <div class="modal-header">
+          <h2>确认删除</h2>
+        </div>
+        <div class="modal-body">
+          <p>确定要删除这个填充项吗？此操作无法撤销。</p>
+        </div>
+        <div class="modal-footer">
+          <button id="cancelDeleteBtn" class="btn btn-outline">取消</button>
+          <button id="confirmDeleteBtn" class="btn btn-danger">删除</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 提示消息 -->
+    <div id="toast" class="toast hidden">
+      <span class="toast-message"></span>
+    </div>
+  </div>
+
+  <script src="config.js"></script>
+</body>
+</html>
