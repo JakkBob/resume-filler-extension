@@ -26,12 +26,48 @@
   }
 }
 
+/* 关闭按钮（右上角悬浮） */
+.rf-dropdown-close {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #999;
+  transition: all 0.15s ease;
+  z-index: 10;
+}
+
+.rf-dropdown-close:hover {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.rf-dropdown-close:active {
+  background: #fecaca;
+  color: #b91c1c;
+}
+
+.rf-dropdown-close svg {
+  width: 14px;
+  height: 14px;
+}
+
 /* 下拉菜单头部 */
 .rf-dropdown-header {
   display: flex;
   align-items: center;
   gap: 8px;
   padding: 10px 14px;
+  padding-right: 36px; /* 为关闭按钮留出空间 */
   background: #f8f9fa;
   border-bottom: 1px solid #e5e5e5;
   font-size: 12px;

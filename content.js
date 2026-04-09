@@ -155,6 +155,11 @@
     // 检查是否是可输入元素
     if (!isInputElement(target)) return;
 
+    // 检查是否是伪下拉框元素（核心拦截）
+    if (isPseudoDropdownElement(target)) {
+      return;
+    }
+
     // 移除之前的下拉菜单
     removeDropdown();
 
@@ -163,7 +168,13 @@
     
     if (matches.length > 0) {
       // 延迟显示下拉菜单，避免与点击事件冲突
+      // 同时给网页自身的下拉组件一点时间弹出
       setTimeout(() => {
+        // 再次检查是否出现了网页自身的下拉组件
+        if (hasDropdownCompanion(target)) {
+          return;
+        }
+        
         if (document.activeElement === target) {
           showDropdown(target, matches);
         }
@@ -194,6 +205,133 @@
     }
     if (element.tagName === 'TEXTAREA') return true;
     if (element.isContentEditable || element.contentEditable === 'true') return true;
+    return false;
+  }
+
+  // 检查是否是伪下拉框元素（核心拦截逻辑）
+  function isPseudoDropdownElement(element) {
+    // 1. 原生 select 标签拦截
+    if (element.tagName === 'SELECT') {
+      return true;
+    }
+
+    // 2. 只读/不可输入拦截
+    // 大多数伪下拉框的 input 都是只读的，只负责显示选中的文本
+    if (element.tagName === 'INPUT') {
+      if (element.readOnly || element.getAttribute('readonly') !== null) {
+        return true;
+      }
+      if (element.getAttribute('contenteditable') === 'false') {
+        return true;
+      }
+    }
+
+    // 3. 特定 class 拦截
+    // 检测常见的下拉组件特征类名
+    if (hasDropdownClass(element)) {
+      return true;
+    }
+
+    // 4. 伴随元素拦截
+    // 检查紧邻范围内是否出现了具有"下拉容器"特征的元素
+    if (hasDropdownCompanion(element)) {
+      return true;
+    }
+
+    return false;
+  }
+
+  // 检测特定 class（下拉组件特征类名）
+  function hasDropdownClass(element) {
+    const dropdownKeywords = [
+      'dropdown', 'select', 'picker', 'options', 'combobox',
+      'autocomplete', 'suggest', 'calendar', 'date-picker',
+      'time-picker', 'cascader', 'multiselect', 'selector'
+    ];
+
+    // 检查元素自身的 class
+    const elementClass = (element.className || '').toLowerCase();
+    for (const keyword of dropdownKeywords) {
+      if (elementClass.includes(keyword)) {
+        return true;
+      }
+    }
+
+    // 检查父元素的 class（很多下拉框是包裹在一个容器内的）
+    let parent = element.parentElement;
+    let depth = 0;
+    while (parent && depth < 3) {
+      const parentClass = (parent.className || '').toLowerCase();
+      for (const keyword of dropdownKeywords) {
+        if (parentClass.includes(keyword)) {
+          return true;
+        }
+      }
+      parent = parent.parentElement;
+      depth++;
+    }
+
+    return false;
+  }
+
+  // 检测伴随下拉元素
+  function hasDropdownCompanion(element) {
+    // 常见的下拉容器特征
+    const dropdownSelectors = [
+      '[role="listbox"]',
+      '[role="combobox"]',
+      '[role="list"]',
+      '[role="menu"]',
+      '[role="dialog"]',
+      '[data-dropdown]',
+      '[data-select]',
+      '[data-picker]'
+    ];
+
+    // 检查兄弟元素
+    let sibling = element.nextElementSibling;
+    let siblingCount = 0;
+    while (sibling && siblingCount < 5) {
+      // 检查 role 属性
+      const role = sibling.getAttribute('role');
+      if (role && ['listbox', 'combobox', 'list', 'menu', 'dialog'].includes(role)) {
+        return true;
+      }
+
+      // 检查是否是可见的绝对定位元素（可能是下拉面板）
+      const style = window.getComputedStyle(sibling);
+      if (style.position === 'absolute' || style.position === 'fixed') {
+        const zIndex = parseInt(style.zIndex) || 0;
+        if (zIndex > 100 && sibling.offsetHeight > 0) {
+          // 检查是否包含列表项
+          if (sibling.querySelector('[role="option"]') || 
+              sibling.querySelector('li') ||
+              sibling.querySelector('[class*="option"]') ||
+              sibling.querySelector('[class*="item"]')) {
+            return true;
+          }
+        }
+      }
+
+      sibling = sibling.nextElementSibling;
+      siblingCount++;
+    }
+
+    // 检查父容器内是否有下拉面板
+    const container = element.closest('div, span, section');
+    if (container) {
+      for (const selector of dropdownSelectors) {
+        const dropdown = container.querySelector(selector);
+        if (dropdown && dropdown !== element) {
+          // 检查下拉面板是否可见
+          const style = window.getComputedStyle(dropdown);
+          if (style.display !== 'none' && style.visibility !== 'hidden') {
+            return true;
+          }
+        }
+      }
+    }
+
     return false;
   }
 
@@ -336,6 +474,33 @@
     const dropdown = document.createElement('div');
     dropdown.className = 'rf-dropdown';
     dropdown.id = 'resume-filler-dropdown';
+
+    // 创建关闭按钮（右上角）
+    const closeBtn = document.createElement('button');
+    closeBtn.className = 'rf-dropdown-close';
+    closeBtn.type = 'button';
+    closeBtn.title = '关闭';
+    closeBtn.innerHTML = `
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+        <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+    `;
+    
+    // 关闭按钮点击事件（关键：阻止事件冒泡，防止触发输入框失焦）
+    closeBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      removeDropdown();
+      // 关闭后重新聚焦输入框，让用户可以继续编辑
+      inputElement.focus();
+    });
+    
+    // 阻止关闭按钮的 mousedown 事件冒泡（防止触发输入框失焦）
+    closeBtn.addEventListener('mousedown', (e) => {
+      e.stopPropagation();
+    });
+
+    dropdown.appendChild(closeBtn);
 
     // 创建下拉菜单内容
     const header = document.createElement('div');
