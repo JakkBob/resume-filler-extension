@@ -598,10 +598,14 @@
 
   // 填充元素
   function fillElement(element, value) {
+    // 将字面量 \n 替换为真正的换行符
+    // 处理导入JSON时 \\n 被解析为字面量 \n 的情况
+    const processedValue = value.replace(/\\n/g, '\n');
+    
     if (element.isContentEditable || element.contentEditable === 'true') {
-      element.textContent = value;
+      element.textContent = processedValue;
     } else {
-      element.value = value;
+      element.value = processedValue;
     }
 
     // 触发事件
