@@ -206,8 +206,20 @@
   }
 
   // 处理滚动
-  function handleScroll() {
+  function handleScroll(event) {
     if (currentDropdown) {
+      // 检查滚动的源头是否是插件下拉菜单本身或其子元素
+      // 如果是，则不关闭下拉菜单
+      if (event && event.target) {
+        let target = event.target;
+        // 向上遍历检查是否是插件下拉菜单
+        while (target) {
+          if (target === currentDropdown || target.id === 'resume-filler-dropdown' || target.classList && target.classList.contains('rf-dropdown')) {
+            return; // 是插件下拉菜单内部的滚动，不关闭
+          }
+          target = target.parentElement;
+        }
+      }
       removeDropdown();
     }
   }
@@ -224,16 +236,34 @@
   }
 
   // 检查是否是伪下拉框元素（核心拦截逻辑）
+  // 遵循"实证原则"：不能仅凭类名拦截，必须检查元素是否真正不可输入
   function isPseudoDropdownElement(element) {
     // 1. 原生 select 标签拦截
     if (element.tagName === 'SELECT') {
       return true;
     }
 
-    // 2. 只读/不可输入拦截
+    // 2. TEXTAREA 特殊处理
+    // textarea 只检查 disabled，不检查 readonly（因为用户可能需要输入多行文本）
+    if (element.tagName === 'TEXTAREA') {
+      // 只有真正 disabled 才拦截
+      if (element.disabled) {
+        return true;
+      }
+      // textarea 不再因为 readonly 而被拦截，让用户可以正常使用
+      // 也不再因为父元素类名而被拦截
+      return false;
+    }
+
+    // 3. INPUT 标签的只读/不可输入拦截
     // 大多数伪下拉框的 input 都是只读的，只负责显示选中的文本
     if (element.tagName === 'INPUT') {
+      // 检查是否真正具有 readonly 属性
       if (element.readOnly || element.getAttribute('readonly') !== null) {
+        return true;
+      }
+      // 检查是否 disabled
+      if (element.disabled) {
         return true;
       }
       if (element.getAttribute('contenteditable') === 'false') {
@@ -241,14 +271,14 @@
       }
     }
 
-    // 3. 特定 class 拦截
-    // 检测常见的下拉组件特征类名
-    if (hasDropdownClass(element)) {
-      return true;
-    }
+    // 4. 特定 class 拦截（仅当元素本身真正不可输入时才拦截）
+    // 遵循"实证原则"：不能仅凭类名拦截，必须配合检查 readonly/disabled
+    // 如果元素能正常打字（无 readonly），即使外层类名叫 auto-complete，也放行
+    // 此处已移除单纯的类名拦截逻辑
 
-    // 4. 伴随元素拦截
+    // 5. 伴随元素拦截
     // 检查紧邻范围内是否出现了具有"下拉容器"特征的元素
+    // 但仅当该元素确实存在且可见时才拦截
     if (hasDropdownCompanion(element)) {
       return true;
     }
