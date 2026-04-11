@@ -404,81 +404,102 @@
 
   // 获取元素的上下文信息
   function getElementContext(element) {
-    const context = new Set();
-
-    // 1. placeholder属性
-    if (element.placeholder) {
-      context.add(element.placeholder);
-    }
-
-    // 2. name属性
-    if (element.name) {
-      context.add(element.name);
-    }
-
-    // 3. id属性
-    if (element.id) {
-      context.add(element.id);
-    }
-
-    // 4. aria-label属性
-    if (element.getAttribute('aria-label')) {
-      context.add(element.getAttribute('aria-label'));
-    }
-
-    // 5. title属性
-    if (element.title) {
-      context.add(element.title);
-    }
-
-    // 6. 查找关联的label
-    const labels = findLabels(element);
-    labels.forEach(label => {
-      const text = label.textContent?.trim();
-      if (text) context.add(text);
-    });
-
-    // 7. 父元素和兄弟元素的文本
-    const parentText = getParentText(element);
-    parentText.forEach(text => context.add(text));
-
-    // 8. 前一个兄弟元素的文本
-    const prevSibling = element.previousElementSibling;
-    if (prevSibling) {
-      const text = prevSibling.textContent?.trim();
-      if (text && text.length < 50) {
-        context.add(text);
-      }
-    }
-
-    // 9. 噪音过滤：清洗上下文集合
     // 定义噪音词数组
     const noiseWords = ['请输入', '请选择', '请填写', '请搜索', '输入', '选择', '填写', '请'];
     
-    const cleanedContext = [];
-    for (const text of context) {
-      if (!text || text.length === 0) continue;
-      
-      // 检查是否完全等于噪音词
-      let isNoise = false;
-      let cleanedText = text;
-      
-      for (const noise of noiseWords) {
-        // 如果文本完全等于噪音词，直接丢弃
-        if (text === noise) {
-          isNoise = true;
-          break;
+    // 噪音过滤函数
+    function filterNoise(contextSet) {
+      const cleanedContext = [];
+      for (const text of contextSet) {
+        if (!text || text.length === 0) continue;
+        
+        // 检查是否完全等于噪音词
+        let isNoise = false;
+        let cleanedText = text;
+        
+        for (const noise of noiseWords) {
+          // 如果文本完全等于噪音词，直接丢弃
+          if (text === noise) {
+            isNoise = true;
+            break;
+          }
+          // 如果文本包含噪音词，将其剥离
+          if (text.includes(noise)) {
+            cleanedText = cleanedText.replace(noise, '').trim();
+          }
         }
-        // 如果文本包含噪音词，将其剥离
-        if (text.includes(noise)) {
-          cleanedText = cleanedText.replace(noise, '').trim();
+        
+        // 如果不是纯噪音词，且清洗后还有内容，则保留
+        if (!isNoise && cleanedText.length > 0) {
+          cleanedContext.push(cleanedText);
         }
       }
-      
-      // 如果不是纯噪音词，且清洗后还有内容，则保留
-      if (!isNoise && cleanedText.length > 0) {
-        cleanedContext.push(cleanedText);
+      return cleanedContext;
+    }
+
+    // 收集上下文的函数
+    function collectContext(maxDepth = 3) {
+      const context = new Set();
+
+      // 1. placeholder属性
+      if (element.placeholder) {
+        context.add(element.placeholder);
       }
+
+      // 2. name属性
+      if (element.name) {
+        context.add(element.name);
+      }
+
+      // 3. id属性
+      if (element.id) {
+        context.add(element.id);
+      }
+
+      // 4. aria-label属性
+      if (element.getAttribute('aria-label')) {
+        context.add(element.getAttribute('aria-label'));
+      }
+
+      // 5. title属性
+      if (element.title) {
+        context.add(element.title);
+      }
+
+      // 6. 查找关联的label
+      const labels = findLabels(element);
+      labels.forEach(label => {
+        const text = label.textContent?.trim();
+        if (text) context.add(text);
+      });
+
+      // 7. 父元素和兄弟元素的文本（使用指定深度）
+      const parentText = getParentText(element, maxDepth);
+      parentText.forEach(text => context.add(text));
+
+      // 8. 前一个兄弟元素的文本
+      const prevSibling = element.previousElementSibling;
+      if (prevSibling) {
+        const text = prevSibling.textContent?.trim();
+        if (text && text.length < 50) {
+          context.add(text);
+        }
+      }
+
+      return context;
+    }
+
+    // 第一步：先用默认3层搜索获取上下文
+    const initialContext = collectContext(3);
+    
+    // 第二步：过滤噪音词
+    let cleanedContext = filterNoise(initialContext);
+    
+    // 第三步：如果过滤后有效上下文为空，说明可能没有找到正确的标签
+    // 此时扩大搜索范围到6层，重新查找
+    if (cleanedContext.length === 0) {
+      const expandedContext = collectContext(6);
+      cleanedContext = filterNoise(expandedContext);
     }
 
     return cleanedContext;
@@ -504,8 +525,30 @@
       parent = parent.parentElement;
     }
 
-    // 查找相邻的label
-    const container = element.closest('div, li, td, th, section, article');
+    // 优先查找常见的表单项容器（如Phoenix组件的form-item）
+    // 这些容器通常包含label和input
+    const formItemSelectors = [
+      '.form-item',           // Phoenix等组件库
+      '.form-group',          // Bootstrap等
+      '.form-field',          // 通用表单字段
+      '.field',               // 通用字段
+      '.input-group',         // 输入组
+      '[class*="form-item"]', // 包含form-item的类名
+      '[class*="formField"]', // 包含formField的类名
+      '[class*="field-item"]' // 包含field-item的类名
+    ];
+    
+    let container = null;
+    for (const selector of formItemSelectors) {
+      container = element.closest(selector);
+      if (container) break;
+    }
+    
+    // 如果没找到特定表单容器，使用通用容器
+    if (!container) {
+      container = element.closest('div, li, td, th, section, article');
+    }
+    
     if (container) {
       const containerLabels = container.querySelectorAll('label');
       containerLabels.forEach(label => {
@@ -520,7 +563,8 @@
 
   // 获取父元素相关文本
   // 使用 TreeWalker 深度提取文本，并加入边界标签阻断机制
-  function getParentText(element) {
+  // maxDepth: 向上搜索层级，默认3层，避免误匹配其他表单项
+  function getParentText(element, maxDepth = 3) {
     const texts = [];
     
     // 边界标签数组：遇到这些标签立即终止向上搜索，防止越界
@@ -528,7 +572,6 @@
     
     let parent = element.parentElement;
     let depth = 0;
-    const maxDepth = 6; // 向上最大查探深度放宽至 6 层
 
     while (parent && depth < maxDepth) {
       // 边界检测：一旦命中阻断标签，立即终止向上搜索
