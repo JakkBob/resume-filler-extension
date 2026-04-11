@@ -451,7 +451,37 @@
       }
     }
 
-    return Array.from(context).filter(c => c.length > 0);
+    // 9. 噪音过滤：清洗上下文集合
+    // 定义噪音词数组
+    const noiseWords = ['请输入', '请选择', '请填写', '请搜索', '输入', '选择', '填写', '请'];
+    
+    const cleanedContext = [];
+    for (const text of context) {
+      if (!text || text.length === 0) continue;
+      
+      // 检查是否完全等于噪音词
+      let isNoise = false;
+      let cleanedText = text;
+      
+      for (const noise of noiseWords) {
+        // 如果文本完全等于噪音词，直接丢弃
+        if (text === noise) {
+          isNoise = true;
+          break;
+        }
+        // 如果文本包含噪音词，将其剥离
+        if (text.includes(noise)) {
+          cleanedText = cleanedText.replace(noise, '').trim();
+        }
+      }
+      
+      // 如果不是纯噪音词，且清洗后还有内容，则保留
+      if (!isNoise && cleanedText.length > 0) {
+        cleanedContext.push(cleanedText);
+      }
+    }
+
+    return cleanedContext;
   }
 
   // 查找关联的label元素
@@ -489,19 +519,60 @@
   }
 
   // 获取父元素相关文本
+  // 使用 TreeWalker 深度提取文本，并加入边界标签阻断机制
   function getParentText(element) {
     const texts = [];
+    
+    // 边界标签数组：遇到这些标签立即终止向上搜索，防止越界
+    const boundaryTags = ['FORM', 'MAIN', 'SECTION', 'ARTICLE', 'HEADER', 'FOOTER', 'NAV', 'BODY', 'HTML'];
+    
     let parent = element.parentElement;
     let depth = 0;
+    const maxDepth = 6; // 向上最大查探深度放宽至 6 层
 
-    while (parent && depth < 3) {
-      // 获取直接子元素中的文本节点
-      for (const child of parent.children) {
-        if (child !== element && !child.contains(element)) {
-          const text = child.textContent?.trim();
-          if (text && text.length < 100) {
-            texts.push(text);
+    while (parent && depth < maxDepth) {
+      // 边界检测：一旦命中阻断标签，立即终止向上搜索
+      if (boundaryTags.includes(parent.tagName)) {
+        break;
+      }
+
+      // 使用 TreeWalker 深度提取文本节点
+      const walker = document.createTreeWalker(
+        parent,
+        NodeFilter.SHOW_TEXT,
+        {
+          acceptNode: (node) => {
+            // 排除输入框自身节点
+            if (element.contains(node) || node.parentElement === element) {
+              return NodeFilter.FILTER_REJECT;
+            }
+            
+            // 获取文本内容
+            const text = node.textContent?.trim();
+            
+            // 只接受长度在 2~20 字符之间的有效文本节点
+            // 过滤掉纯空白或大段乱码
+            if (!text || text.length < 2 || text.length > 20) {
+              return NodeFilter.FILTER_REJECT;
+            }
+            
+            // 排除 script、style 等标签内的文本
+            const parentTag = node.parentElement?.tagName;
+            if (parentTag === 'SCRIPT' || parentTag === 'STYLE' || parentTag === 'NOSCRIPT') {
+              return NodeFilter.FILTER_REJECT;
+            }
+            
+            return NodeFilter.FILTER_ACCEPT;
           }
+        }
+      );
+
+      // 遍历所有符合条件的文本节点
+      let textNode;
+      while ((textNode = walker.nextNode())) {
+        const text = textNode.textContent.trim();
+        if (text) {
+          texts.push(text);
         }
       }
       
@@ -509,7 +580,8 @@
       depth++;
     }
 
-    return texts;
+    // 使用 Set 进行去重，防止不同层级抓到同一个 Label 文本
+    return [...new Set(texts)];
   }
 
   // 显示下拉菜单
